@@ -49,11 +49,11 @@ int main() {
         Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
     outputParams.hostApiSpecificStreamInfo = nullptr;
 
-    err = Pa_OpenDefaultStream(
-        &stream, kNumChannels , kNumChannels, kSampleFormat, kSampleRate, kFramesPerBuffer, nullptr, nullptr
+    err = Pa_OpenStream(
+        &stream, &inputParams, &outputParams, kSampleRate, kFramesPerBuffer, paNoFlag, nullptr, nullptr
     );
 
-    if (!checkErr(err, "Pa_OpenDefaultStream")) return 1; //  Exit on error(err);
+    if (!checkErr(err, "Pa_OpenStream")) return 1; //  Exit on error(err);
 
     // start the stream
     err = Pa_StartStream(stream);
@@ -80,8 +80,8 @@ int main() {
         // write the output buffer to the output stream
 
         err = Pa_WriteStream( stream, output_buffer, kFramesPerBuffer);
-        // Commented out because buffer underflow keeps occuring on my computer
-        // if (!checkErr(err, "Pa_WriteStream")) return 1; //  Exit on error(err);
+
+        if (!checkErr(err, "Pa_WriteStream")) return 1; //  Exit on error(err);
     }
 
     // close off everything at the end of the process
