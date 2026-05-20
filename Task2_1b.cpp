@@ -1,6 +1,7 @@
 
 /* Implement audio passthrough on a single thread */
 
+#include <smbPitchShift.h>
 #include <portaudio.h>
 #include <iostream>
 #include <vector>
@@ -33,7 +34,12 @@ int main() {
 
     // Set up input stream parameters
     PaStreamParameters inputParams;
-    inputParams.device                    = Pa_GetDefaultInputDevice();
+    inputParams.device = Pa_GetDefaultInputDevice();
+    if (inputParams.device == paNoDevice) {
+        std::cerr << "No default input device found." << std::endl;
+        Pa_Terminate();
+        return 1;
+    }
     inputParams.channelCount              = kNumChannels;
     inputParams.sampleFormat              = kSampleFormat;
     inputParams.suggestedLatency          =
@@ -42,7 +48,12 @@ int main() {
 
     // Set up output stream parameters
     PaStreamParameters outputParams;
-    outputParams.device                    = Pa_GetDefaultOutputDevice();
+    outputParams.device = Pa_GetDefaultOutputDevice();
+    if (outputParams.device == paNoDevice) {
+        std::cerr << "No default output device found." << std::endl;
+        Pa_Terminate();
+        return 1;
+    }
     outputParams.channelCount              = kNumChannels;
     outputParams.sampleFormat              = kSampleFormat;
     outputParams.suggestedLatency          =
@@ -86,8 +97,10 @@ int main() {
             output_buffer[j] = input_buffer[j];
         }
 
-        // write the output buffer to the output stream
+        // Pitch shift the output buffer by a factor of 2 (just to test the functionality of the pitch shifting code)
+        smbPitchShift(2.0, kFramesPerBuffer, 1024, 4, kSampleRate, output_buffer, output_buffer);
 
+        // write the output buffer to the output stream
         err = Pa_WriteStream( stream, output_buffer, kFramesPerBuffer);
 
         if (!checkErr(err, "Pa_WriteStream")) return 1; //  Exit on error(err);
