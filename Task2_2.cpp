@@ -142,28 +142,32 @@ int main() {
     cout << "Beginning the audio process..." << endl;
 
     /*
-     * Main thread — processor
+     * Thread 2 — processor
      * Pulls chunks from the ring buffer, pitch shifts them, and writes the
      * result to the output stream. Pa_WriteStream paces this thread to the
      * same hardware rate as the reader, so the ring buffer stays shallow
-     * under normal conditions.
+     * under normal conditions. When finished, sets done = true to signal
+     * the reader thread to stop.
      */
-    float process_buf[kFramesPerBuffer];
-    const int iterations = (kNumSeconds * kSampleRate) / kFramesPerBuffer;
-    for (int i = 0; i < iterations && !done; i++) {
-        // Wait until the ring buffer has a chunk available
-        while (!ring.read(process_buf) && !done) {}
-        if (done) break;
+    std::thread processor([&]() {
+        float process_buf[kFramesPerBuffer];
+        const int iterations = (kNumSeconds * kSampleRate) / kFramesPerBuffer;
+        for (int i = 0; i < iterations && !done; i++) {
+            // Wait until the ring buffer has a chunk available
+            while (!ring.read(process_buf) && !done) {}
+            if (done) break;
 
-        // Pitch shift by a factor of 2
-        smbPitchShift(2.0f, kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
+            // Pitch shift by a factor of 2
+            smbPitchShift(2.0f, kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
 
-        err = Pa_WriteStream(stream, process_buf, kFramesPerBuffer);
-        if (!checkErr(err, "Pa_WriteStream")) break;
-    }
+            PaError write_err = Pa_WriteStream(stream, process_buf, kFramesPerBuffer);
+            if (!checkErr(write_err, "Pa_WriteStream")) break;
+        }
+        done = true; // signal reader to stop once processing is complete
+    });
 
-    done = true;
     reader.join();
+    processor.join();
 
     cout << "The program has ended" << endl;
 
