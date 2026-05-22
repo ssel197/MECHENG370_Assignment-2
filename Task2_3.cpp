@@ -137,7 +137,10 @@ int main() {
 
     RingBuffer ring;
     std::atomic<bool> done(false);
-    atomic<float> kPitchShift{2.0f}; // Pitch shift factor (2.0 = one octave up)
+    std::atomic<float> pitchFactor{2.0f}; // Pitch shift factor (2.0 = one octave up)
+
+    // State: 0 = idle, 1 = pitch shift, 2 = passthrough
+    std::atomic<int> state{0};
 
 
     /*
@@ -172,19 +175,20 @@ int main() {
      */
     std::thread processor([&]() {
         float process_buf[kFramesPerBuffer];
-        const int iterations = (kNumSeconds * kSampleRate) / kFramesPerBuffer;
-        for (int i = 0; i < iterations && !done; i++) {
+        while (!done) {
             // Wait until the ring buffer has a chunk available
             while (!ring.read(process_buf) && !done) {}
             if (done) break;
 
-            // Pitch shift by a factor of 2
-            smbPitchShift(kPitchShift, kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
+            // Only pitch shift in pitch shift mode; passthrough sends audio unchanged
+            if (state == 1) {
+                smbPitchShift(pitchFactor.load(), kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
+            }
 
             PaError write_err = Pa_WriteStream(outputStream, process_buf, kFramesPerBuffer);
             if (!checkErr(write_err, "Pa_WriteStream")) break;
         }
-        done = true; // signal reader to stop once processing is complete
+        done = true;
     });
 
     /*
@@ -199,36 +203,41 @@ int main() {
 
     std::thread inputThread([&]() {
         char command;
-        cout << "Enter 's' to start pitch shifting, 'p' for passthrough, 'u' to increase pitch, 'd' to decrease pitch, and 'q' to quit:" << endl;
+        cout << "Commands: s = pitch shift, p = passthrough, u = pitch up, d = pitch down, q = quit" << endl;
         while (!done) {
             cin >> command;
-            switch (command) {
-                case 's':
-                    kPitchShift = 2.0f; // Start with one octave up
-                    cout << "Pitch shifting enabled." << endl;
-                    break;
-                case 'p':
-                    kPitchShift = 1.0f; // Passthrough mode
-                    cout << "Passthrough mode enabled." << endl;
-                    break;
-                case 'u':
-                    if (kPitchShift + 0.5f < 2.0f) { // Prevent going above one octave up
-                        kPitchShift = kPitchShift + 0.5f;
-                        cout << "Increased pitch shift factor: " << kPitchShift.load() << endl;
+            int currentState = state; // read once for the switch
+
+            switch (currentState) {
+                case 1: // PITCH SHIFT
+                    if (command == 'p') {
+                        state = 2;
+                        cout << "Passthrough enabled." << endl;
+                    } else if (command == 'u') {
+                        float f = pitchFactor;
+                        if (f + 0.5f <= 2.0f) { pitchFactor = f + 0.5f; cout << "Pitch factor: " << (float)pitchFactor << endl; }
+                        else                   { cout << "Already at maximum (2.0)." << endl; }
+                    } else if (command == 'd') {
+                        float f = pitchFactor;
+                        if (f - 0.5f >= 0.5f) { pitchFactor = f - 0.5f; cout << "Pitch factor: " << (float)pitchFactor << endl; }
+                        else                   { cout << "Already at minimum (0.5)." << endl; }
+                    } else if (command == 'q') {
+                        done = true;
+                        cout << "Quitting..." << endl;
                     }
                     break;
-                case 'd':
-                    if (kPitchShift > 0.5f) { // Prevent going below one octave down
-                        kPitchShift = kPitchShift - 0.5f;
-                        cout << "Decreased pitch shift factor: " << kPitchShift.load() << endl;
+
+                case 2: // PASSTHROUGH
+                    if (command == 's') {
+                        state = 1;
+                        cout << "Pitch shifting enabled. Factor: " << (float)pitchFactor << endl;
+                    } else if (command == 'u' || command == 'd') {
+                        cout << "u/d disabled in passthrough mode." << endl;
+                    } else if (command == 'q') {
+                        done = true;
+                        cout << "Quitting..." << endl;
                     }
                     break;
-                case 'q':
-                    done = true; // Signal all threads to stop
-                    cout << "Quitting program..." << endl;
-                    break;
-                default:
-                    cout << "Invalid command. Please enter 's', 'p', 'u', 'd', or 'q'." << endl;
             }
         }
     });
