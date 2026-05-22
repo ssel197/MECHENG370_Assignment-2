@@ -14,7 +14,7 @@ constexpr int kSampleRate      = 44100; // Sample rate in Hz
 constexpr int kFramesPerBuffer = 512;   // Number of frames per buffer
 constexpr int kNumChannels     = 1;     // Mono channel (Justine recommends using this)
 constexpr int kNumSeconds      = 10;    // Run for 10 seconds
-constexpr PaSampleFormat kSampleFormat = paFloat32; // 32-bit floating point
+constexpr PaSampleFormat kSampleFormat = paFloat32; // 32-bit floating point]
 
 /*
  * Lock-free ring buffer (single-producer, single-consumer).
@@ -137,6 +137,8 @@ int main() {
 
     RingBuffer ring;
     std::atomic<bool> done(false);
+    atomic<float> kPitchShift{2.0f}; // Pitch shift factor (2.0 = one octave up)
+
 
     /*
      * Thread 1 — reader
@@ -177,7 +179,7 @@ int main() {
             if (done) break;
 
             // Pitch shift by a factor of 2
-            smbPitchShift(2.0f, kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
+            smbPitchShift(kPitchShift, kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
 
             PaError write_err = Pa_WriteStream(outputStream, process_buf, kFramesPerBuffer);
             if (!checkErr(write_err, "Pa_WriteStream")) break;
@@ -185,8 +187,55 @@ int main() {
         done = true; // signal reader to stop once processing is complete
     });
 
+    /*
+    * Thread 3 - Input thread for adjusting pitch shift factor
+    * Quit (q): Allows the user to exit the program
+    * Start Pitch Shifter (s): Enables the pitch shifter. Output audio that follows will be
+    * altered in pitch.
+    * Passthrough (p): Enables passthrough mode. Allows audio output without any alterations.
+    * Up (u): Increasing the pitch shift factor by 0.5 units, disabled in Passthrough mode.
+    * Down (d): Decreasing the pitch shift factor by 0.5 units, disabled in Passthrough mode
+    */
+
+    std::thread inputThread([&]() {
+        char command;
+        cout << "Enter 's' to start pitch shifting, 'p' for passthrough, 'u' to increase pitch, 'd' to decrease pitch, and 'q' to quit:" << endl;
+        while (!done) {
+            cin >> command;
+            switch (command) {
+                case 's':
+                    kPitchShift = 2.0f; // Start with one octave up
+                    cout << "Pitch shifting enabled." << endl;
+                    break;
+                case 'p':
+                    kPitchShift = 1.0f; // Passthrough mode
+                    cout << "Passthrough mode enabled." << endl;
+                    break;
+                case 'u':
+                    if (kPitchShift > 0.5f) { // Prevent going below one octave down
+                        kPitchShift = kPitchShift + 0.5f;
+                        cout << "Increased pitch shift factor: " << kPitchShift.load() << endl;
+                    }
+                    break;
+                case 'd':
+                    if (kPitchShift > 0.5f) { // Prevent going below one octave down
+                        kPitchShift = kPitchShift - 0.5f;
+                        cout << "Decreased pitch shift factor: " << kPitchShift.load() << endl;
+                    }
+                    break;
+                case 'q':
+                    done = true; // Signal all threads to stop
+                    cout << "Quitting program..." << endl;
+                    break;
+                default:
+                    cout << "Invalid command. Please enter 's', 'p', 'u', 'd', or 'q'." << endl;
+            }
+        }
+    });
+
     reader.join();
     processor.join();
+    inputThread.join();
 
     cout << "The program has ended" << endl;
 
