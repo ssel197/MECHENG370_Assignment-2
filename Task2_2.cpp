@@ -68,7 +68,10 @@ static bool checkErr(PaError err, const char* context) {
 }
 
 int main() {
-    PaStream* stream;
+    // Two separate streams: ALSA on WSL does not support full-duplex
+    // (input + output in a single Pa_OpenStream call).
+    PaStream* inputStream;
+    PaStream* outputStream;
 
     PaError err = Pa_Initialize();
     if (!checkErr(err, "Pa_Initialize")) return 1;
@@ -101,9 +104,23 @@ int main() {
         Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
     outputParams.hostApiSpecificStreamInfo = nullptr;
 
+    // Open input-only stream
     err = Pa_OpenStream(
-        &stream,
+        &inputStream,
         &inputParams,
+        nullptr,        // no output
+        kSampleRate,
+        kFramesPerBuffer,
+        paNoFlag,
+        nullptr,
+        nullptr
+    );
+    if (!checkErr(err, "Pa_OpenStream (input)")) { Pa_Terminate(); return 1; }
+
+    // Open output-only stream
+    err = Pa_OpenStream(
+        &outputStream,
+        nullptr,        // no input
         &outputParams,
         kSampleRate,
         kFramesPerBuffer,
@@ -111,10 +128,13 @@ int main() {
         nullptr,
         nullptr
     );
-    if (!checkErr(err, "Pa_OpenStream")) return 1;
+    if (!checkErr(err, "Pa_OpenStream (output)")) { Pa_Terminate(); return 1; }
 
-    err = Pa_StartStream(stream);
-    if (!checkErr(err, "Pa_StartStream")) return 1;
+    err = Pa_StartStream(inputStream);
+    if (!checkErr(err, "Pa_StartStream (input)")) { Pa_Terminate(); return 1; }
+
+    err = Pa_StartStream(outputStream);
+    if (!checkErr(err, "Pa_StartStream (output)")) { Pa_Terminate(); return 1; }
 
     RingBuffer ring;
     std::atomic<bool> done(false);
@@ -130,7 +150,7 @@ int main() {
     std::thread reader([&]() {
         float buf[kFramesPerBuffer];
         while (!done) {
-            PaError read_err = Pa_ReadStream(stream, buf, kFramesPerBuffer);
+            PaError read_err = Pa_ReadStream(inputStream, buf, kFramesPerBuffer);
             if (!checkErr(read_err, "Pa_ReadStream")) {
                 done = true;
                 return;
@@ -160,7 +180,7 @@ int main() {
             // Pitch shift by a factor of 2
             smbPitchShift(2.0f, kFramesPerBuffer, 1024, 4, kSampleRate, process_buf, process_buf);
 
-            PaError write_err = Pa_WriteStream(stream, process_buf, kFramesPerBuffer);
+            PaError write_err = Pa_WriteStream(outputStream, process_buf, kFramesPerBuffer);
             if (!checkErr(write_err, "Pa_WriteStream")) break;
         }
         done = true; // signal reader to stop once processing is complete
@@ -171,11 +191,9 @@ int main() {
 
     cout << "The program has ended" << endl;
 
-    err = Pa_StopStream(stream);
-    if (!checkErr(err, "Pa_StopStream")) return 1;
-
-    err = Pa_CloseStream(stream);
-    if (!checkErr(err, "Pa_CloseStream")) return 1;
-
+    Pa_StopStream(inputStream);
+    Pa_StopStream(outputStream);
+    Pa_CloseStream(inputStream);
+    Pa_CloseStream(outputStream);
     Pa_Terminate();
 }
