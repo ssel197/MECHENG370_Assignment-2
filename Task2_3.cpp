@@ -212,7 +212,7 @@ int main() {
                     cout << "Passthrough mode enabled." << endl;
                     break;
                 case 'u':
-                    if (kPitchShift > 0.5f) { // Prevent going below one octave down
+                    if (kPitchShift + 0.5f < 2.0f) { // Prevent going above one octave up
                         kPitchShift = kPitchShift + 0.5f;
                         cout << "Increased pitch shift factor: " << kPitchShift.load() << endl;
                     }
