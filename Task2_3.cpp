@@ -209,9 +209,15 @@ int main() {
             int currentState = state; // read once for the switch
 
             switch (currentState) {
-                case 0: // PITCH SHIFT
+                case 0: // IDLE
+                    if      (command == 's') { state = 1; cout << "Pitch shifting enabled. Factor: " << (float)pitchFactor << endl; }
+                    else if (command == 'p') { state = 2; cout << "Passthrough enabled." << endl; }
+                    else if (command == 'q') { done = true; cout << "Quitting..." << endl; }
+                    break;
+
+                case 1: // PITCH SHIFT
                     if (command == 'p') {
-                        state = 1;
+                        state = 2;
                         cout << "Passthrough enabled." << endl;
                     } else if (command == 'u') {
                         float f = pitchFactor;
@@ -227,9 +233,9 @@ int main() {
                     }
                     break;
 
-                case 1: // PASSTHROUGH
+                case 2: // PASSTHROUGH
                     if (command == 's') {
-                        state = 0;
+                        state = 1;
                         cout << "Pitch shifting enabled. Factor: " << (float)pitchFactor << endl;
                     } else if (command == 'u' || command == 'd') {
                         cout << "u/d disabled in passthrough mode." << endl;
