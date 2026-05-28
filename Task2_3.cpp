@@ -13,7 +13,6 @@ using namespace std;
 constexpr int kSampleRate      = 44100; // Sample rate in Hz
 constexpr int kFramesPerBuffer = 512;   // Number of frames per buffer
 constexpr int kNumChannels     = 1;     // Mono channel (Justine recommends using this)
-constexpr int kNumSeconds      = 10;    // Run for 10 seconds
 constexpr PaSampleFormat kSampleFormat = paFloat32; // 32-bit floating point]
 
 /*
@@ -155,7 +154,8 @@ int main() {
         float buf[kFramesPerBuffer];
         while (!done) {
             PaError read_err = Pa_ReadStream(inputStream, buf, kFramesPerBuffer);
-            if (!checkErr(read_err, "Pa_ReadStream")) {
+            if (read_err != paNoError && read_err != paInputOverflowed) {
+                checkErr(read_err, "Pa_ReadStream");
                 done = true;
                 return;
             }
@@ -186,7 +186,10 @@ int main() {
             }
 
             PaError write_err = Pa_WriteStream(outputStream, process_buf, kFramesPerBuffer);
-            if (!checkErr(write_err, "Pa_WriteStream")) break;
+            if (write_err != paNoError && write_err != paOutputUnderflowed) {
+                checkErr(write_err, "Pa_WriteStream");
+                break;
+            }
         }
         done = true;
     });
