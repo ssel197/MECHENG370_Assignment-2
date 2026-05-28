@@ -204,7 +204,7 @@ int main() {
     * Down (d): Decreasing the pitch shift factor by 0.5 units, disabled in Passthrough mode
     */
 
-    std::thread inputThread([&]() {
+    std::thread controller([&]() {
         char command;
         cout << "Commands: s = pitch shift, p = passthrough, u = pitch up, d = pitch down, q = quit" << endl;
         while (!done) {
@@ -253,7 +253,7 @@ int main() {
 
     reader.join();
     processor.join();
-    inputThread.join();
+    controller.join();
 
     cout << "The program has ended" << endl;
 
