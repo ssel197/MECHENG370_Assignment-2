@@ -1,7 +1,7 @@
 
 /* Implement audio passthrough on a single thread */
 
-#include <portaudio.h>
+#include "portaudio.h"
 #include <iostream>
 #include <vector>
 
@@ -9,7 +9,7 @@ using namespace std;
 
 /*-- Audio parameters --*/
 constexpr int kSampleRate      = 44100; // Sample rate in Hz
-constexpr int kFramesPerBuffer = 512;   // Number of frames per buffer
+constexpr int kFramesPerBuffer = 128;   // Number of frames per buffer
 constexpr int kNumChannels     = 1;     // Mono channel (Justine recommends using this)
 constexpr int kNumSeconds      = 10;    // Run for 10 seconds
 constexpr PaSampleFormat kSampleFormat = paFloat32; // 32-bit floating point
@@ -103,4 +103,5 @@ int main() {
     if (!checkErr(err, "Pa_CloseStream")) return 1; //  Exit on error(err);
 
     Pa_Terminate();
+    return 0;
 }
