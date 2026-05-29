@@ -1,8 +1,8 @@
 
 /* Implement audio passthrough on multiple threads */
 
-#include <smbPitchShift.h>
-#include <portaudio.h>
+#include "smbPitchShift.h"
+#include "portaudio.h"
 #include <iostream>
 #include <thread>
 #include <atomic>
