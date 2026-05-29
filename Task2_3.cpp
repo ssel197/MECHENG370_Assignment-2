@@ -4,6 +4,7 @@
 #include "smbPitchShift.h"
 #include "portaudio.h"
 #include <iostream>
+#include <string>
 #include <thread>
 #include <atomic>
 
@@ -205,10 +206,19 @@ int main() {
     */
 
     std::thread controller([&]() {
+        
+        string unsanitizedInput;
         char command;
         cout << "Commands: s = pitch shift, p = passthrough, u = pitch up, d = pitch down, q = quit" << endl;
         while (!done) {
-            cin >> command;
+            
+            cin >> unsanitizedInput;
+            if (unsanitizedInput.empty() || unsanitizedInput.length() > 1) {
+                cout << "Invalid command" << endl;
+                continue;
+            }// ignore empty input or multiple characters
+
+            command = unsanitizedInput[0]; // the command is the first character of the input
             int currentState = state; // read once for the switch
 
             switch (currentState) {
@@ -233,6 +243,8 @@ int main() {
                     } else if (command == 'q') {
                         done = true;
                         cout << "Quitting..." << endl;
+                    } else {
+                        cout << "Invalid command in pitch shift mode." << endl;
                     }
                     break;
 
@@ -245,6 +257,8 @@ int main() {
                     } else if (command == 'q') {
                         done = true;
                         cout << "Quitting..." << endl;
+                    } else {
+                        cout << "Invalid command in passthrough mode." << endl;
                     }
                     break;
             }
