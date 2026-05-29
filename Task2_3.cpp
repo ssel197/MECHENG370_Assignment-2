@@ -139,7 +139,7 @@ int main() {
     std::atomic<bool> done(false);
     std::atomic<float> pitchFactor{2.0f}; // Pitch shift factor (2.0 = one octave up)
 
-    // State: 0 = idle, 1 = pitch shift, 2 = passthrough
+    // State: 0 = passthrough, 1 = pitch shift
     std::atomic<int> state{0};
 
 
@@ -222,15 +222,26 @@ int main() {
             int currentState = state; // read once for the switch
 
             switch (currentState) {
-                case 0: // IDLE
-                    if      (command == 's') { state = 1; cout << "Pitch shifting enabled. Factor: " << (float)pitchFactor << endl; }
-                    else if (command == 'p') { state = 2; cout << "Passthrough enabled." << endl; }
-                    else if (command == 'q') { done = true; cout << "Quitting..." << endl; }
+
+                case 0: // PASSTHROUGH
+                    if (command == 's') {
+                        state = 1;
+                        cout << "Pitch shifting enabled. Factor: " << (float)pitchFactor << endl;
+                    } else if (command == 'u' || command == 'd') {
+                        cout << "u/d disabled in passthrough mode." << endl;
+                    } else if (command == 'q') {
+                        done = true;
+                        cout << "Quitting..." << endl;
+                    } else if (command == 'p') {
+                        cout << "Already in passthrough mode." << endl;
+                    } else {
+                        cout << "Invalid command in passthrough mode." << endl;
+                    }
                     break;
 
                 case 1: // PITCH SHIFT
                     if (command == 'p') {
-                        state = 2;
+                        state = 0;
                         cout << "Passthrough enabled." << endl;
                     } else if (command == 'u') {
                         float f = pitchFactor;
@@ -243,24 +254,14 @@ int main() {
                     } else if (command == 'q') {
                         done = true;
                         cout << "Quitting..." << endl;
+                    } else if (command == 's') {
+                        cout << "Already in pitch shift mode." << endl;
                     } else {
                         cout << "Invalid command in pitch shift mode." << endl;
                     }
                     break;
 
-                case 2: // PASSTHROUGH
-                    if (command == 's') {
-                        state = 1;
-                        cout << "Pitch shifting enabled. Factor: " << (float)pitchFactor << endl;
-                    } else if (command == 'u' || command == 'd') {
-                        cout << "u/d disabled in passthrough mode." << endl;
-                    } else if (command == 'q') {
-                        done = true;
-                        cout << "Quitting..." << endl;
-                    } else {
-                        cout << "Invalid command in passthrough mode." << endl;
-                    }
-                    break;
+                
             }
         }
     });
