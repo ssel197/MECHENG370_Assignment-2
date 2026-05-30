@@ -92,13 +92,8 @@ int main() {
         err = Pa_ReadStream( stream, input_buffer, kFramesPerBuffer);
         if (!checkErr(err, "Pa_ReadStream")) return 1; //  Exit on error(err);
 
-        // write that block to the output buffer
-        for (int j = 0; j < kFramesPerBuffer; j++) {
-            output_buffer[j] = input_buffer[j];
-        }
-
         // Pitch shift the output buffer by a factor of 2 (just to test the functionality of the pitch shifting code)
-        smbPitchShift(2.0, kFramesPerBuffer, 1024, 4, kSampleRate, output_buffer, output_buffer);
+        smbPitchShift(2.0, kFramesPerBuffer, 1024, 4, kSampleRate, input_buffer, output_buffer);
 
         // write the output buffer to the output stream
         err = Pa_WriteStream( stream, output_buffer, kFramesPerBuffer);
