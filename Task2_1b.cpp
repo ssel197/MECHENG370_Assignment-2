@@ -26,8 +26,10 @@ static bool checkErr(PaError err, const char* context) {
 }
 
 int main() {
+    
     // Initialize PortAudio
-    PaStream* stream; // stream for audio
+    PaStream* inputStream; // stream for reading audio
+    PaStream* outputStream; // stream for writing audio
 
     PaError err = Pa_Initialize();
     if (!checkErr(err, "Pa_Initialize")) return 1; //  Exit on error
@@ -60,24 +62,38 @@ int main() {
         Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
     outputParams.hostApiSpecificStreamInfo = nullptr;
 
-    // Open the audio stream
-    err = Pa_OpenStream( 
-        &stream, 
-        &inputParams,       // Changed these to use the input & output parameters
-        &outputParams, 
-        kSampleRate, 
-        kFramesPerBuffer, 
-        paNoFlag, 
-        nullptr, 
+    // Open input-only stream
+    err = Pa_OpenStream(
+        &inputStream,
+        &inputParams,
+        nullptr,        // no output
+        kSampleRate,
+        kFramesPerBuffer,
+        paNoFlag,
+        nullptr,
         nullptr
     );
+    if (!checkErr(err, "Pa_OpenStream (input)")) { Pa_Terminate(); return 1; }
 
-    // Check if the stream opened successfully
-    if (!checkErr(err, "Pa_OpenStream")) return 1; //  Exit on error(err);
+    // Open output-only stream
+    err = Pa_OpenStream(
+        &outputStream,
+        nullptr,        // no input
+        &outputParams,
+        kSampleRate,
+        kFramesPerBuffer,
+        paNoFlag,
+        nullptr,
+        nullptr
+    );
+    if (!checkErr(err, "Pa_OpenStream (output)")) { Pa_Terminate(); return 1; }
 
-    // start the stream
-    err = Pa_StartStream(stream);
-    if (!checkErr(err, "Pa_StartStream")) return 1; //  Exit on error(err);
+    err = Pa_StartStream(inputStream);
+    if (!checkErr(err, "Pa_StartStream (input)")) { Pa_Terminate(); return 1; }
+
+    err = Pa_StartStream(outputStream);
+    if (!checkErr(err, "Pa_StartStream (output)")) { Pa_Terminate(); return 1; }
+
 
     // reading in values from the stream and passing them through
     float input_buffer[kFramesPerBuffer];
@@ -89,14 +105,14 @@ int main() {
     for (int i = 0; i < ((kNumSeconds*kSampleRate)/kFramesPerBuffer); i++) {
 
         // read 1 block of the stream
-        err = Pa_ReadStream( stream, input_buffer, kFramesPerBuffer);
+        err = Pa_ReadStream( inputStream, input_buffer, kFramesPerBuffer);
         if (!checkErr(err, "Pa_ReadStream")) return 1; //  Exit on error(err);
 
         // Pitch shift the output buffer by a factor of 2 (just to test the functionality of the pitch shifting code)
         smbPitchShift(2.0, kFramesPerBuffer, 1024, 4, kSampleRate, input_buffer, output_buffer);
 
         // write the output buffer to the output stream
-        err = Pa_WriteStream( stream, output_buffer, kFramesPerBuffer);
+        err = Pa_WriteStream( outputStream, output_buffer, kFramesPerBuffer);
 
         if (!checkErr(err, "Pa_WriteStream")) return 1; //  Exit on error(err);
     }
@@ -104,10 +120,16 @@ int main() {
     // close off everything at the end of the process
     cout << "The program has ended" << endl;
 
-    err = Pa_StopStream(stream);
+    err = Pa_StopStream(inputStream);
     if (!checkErr(err, "Pa_StopStream")) return 1; //  Exit on error(err);
 
-    err = Pa_CloseStream(stream);
+    err = Pa_StopStream(outputStream);
+    if (!checkErr(err, "Pa_StopStream")) return 1; //  Exit on error(err);
+
+    err = Pa_CloseStream(inputStream);
+    if (!checkErr(err, "Pa_CloseStream")) return 1; //  Exit on error(err);
+
+    err = Pa_CloseStream(outputStream);
     if (!checkErr(err, "Pa_CloseStream")) return 1; //  Exit on error(err);
 
     Pa_Terminate();
